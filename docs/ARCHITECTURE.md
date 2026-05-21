@@ -331,11 +331,66 @@ spring.jpa.hibernate.ddl-auto=validate
 
 ---
 
-## 5. Открытые вопросы
+## 5. Хранение файлов
+
+**Решение**: локальная файловая система сервера в папке `uploads/` (фотографии для галереи, изображения новостей, материалы курсов и т.п.). В БД сохраняется только путь к файлу.
+
+### Принципы
+
+- Папка `uploads/` находится **вне** jar-а, рядом с приложением.
+- Папка добавлена в `.gitignore` — пользовательские файлы не попадают в репозиторий.
+- Имена файлов генерируются как UUID + оригинальное имя — нет коллизий.
+- Лимит размера: `spring.servlet.multipart.max-file-size=10MB`.
+- Валидация типа файла: только `image/*`, `application/pdf` и т.п. — белый список.
+- Пути собираются безопасно (никаких `..`), путь к файлу нормализуется.
+
+### Абстракция `FileStorageService`
+
+Вся работа с файлами проходит через интерфейс:
+
+```java
+public interface FileStorageService {
+    String save(MultipartFile file, String subDir);   // вернёт публичный путь / ключ
+    Resource load(String path);                       // прочитать файл
+    void delete(String path);                         // удалить
+}
+```
+
+И единственная реализация на этапе MVP — `LocalFileStorageService`, которая работает с папкой `uploads/`.
+
+**Зачем интерфейс**: миграция на S3 в будущем = добавить `S3FileStorageService` и переключить активный бин в конфигурации. Никаких изменений в контроллерах, сервисах и БД не нужно.
+
+### Структура папок
+
+```
+project-root/
+├── uploads/                  ← вне jar, в .gitignore
+│   ├── gallery/
+│   ├── news/
+│   └── courses/
+└── src/
+```
+
+### Конфигурация
+
+```properties
+app.upload.dir=./uploads
+spring.servlet.multipart.max-file-size=10MB
+spring.servlet.multipart.max-request-size=10MB
+```
+
+Раздача статики: папка `uploads/` мапится на URL `/uploads/**` через `WebMvcConfigurer.addResourceHandlers(...)`.
+
+---
+
+## 6. Открытые вопросы
 
 Перед стартом этапа 1 нужно зафиксировать:
 
 1. **Frontend**: Thymeleaf (SSR) или SPA + REST (JWT)?
 2. **Группы**: использовать сущность `groups` или привязывать ученика напрямую к занятиям?
-3. **Хранение файлов**: файловая система (`uploads/`), БД (`bytea`) или S3-совместимое хранилище?
-4. **Профили**: один `application.properties` или разделение на `dev`/`prod`?
+3. **Профили**: один `application.properties` или разделение на `dev`/`prod`?
+
+### Зафиксированные решения
+
+- **Хранение файлов**: локальная файловая система через абстракцию `FileStorageService` (см. раздел 5). Реализация: `LocalFileStorageService`. Возможна миграция на S3 без изменений в коде потребителей.

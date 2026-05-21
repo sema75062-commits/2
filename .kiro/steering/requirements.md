@@ -31,6 +31,7 @@ users, groups, subjects, teacher_subjects, lessons, grades, courses, course_mate
 - Структура пакетов: config, controllers, services, repositories, entities, dto, exceptions, mappers, security
 - Миграции через Flyway (ddl-auto=validate)
 - Пароли — bcrypt
+- Файлы (галерея, новости, материалы курсов): локальная ФС (`uploads/`) через абстракцию `FileStorageService` — единственная реализация на старте `LocalFileStorageService`, миграция на S3 в будущем без изменений в потребителях
 
 ## Текущий этап разработки
 
